@@ -1,0 +1,225 @@
+<%- include('layout', { 
+  title: 'Watch Video', 
+  body: `
+    <div class="row">
+      <div class="col-lg-8">
+        <!-- Video Player -->
+        <div id="video-container" class="mb-4">
+          <div class="text-center">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading video...</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Video Info -->
+        <div id="video-info" class="mb-4"></div>
+        
+        <!-- Comments Section -->
+        <div class="card">
+          <div class="card-header">
+            <h5>Comments</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <textarea class="form-control" id="commentText" placeholder="Add a comment..." rows="3"></textarea>
+              <button class="btn btn-primary mt-2" onclick="addComment()">Post Comment</button>
+            </div>
+            <div id="comments-container">
+              <div class="text-center">
+                <div class="spinner-border spinner-border-sm" role="status">
+                  <span class="visually-hidden">Loading comments...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-4">
+        <h6>Related Videos</h6>
+        <div id="related-videos">
+          <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      const videoId = '${videoId}';
+      let currentVideo = null;
+      let isLiked = false;
+      
+      // Load video data
+      async function loadVideo() {
+        try {
+          const response = await api.get('/api/v1/videos/' + videoId);
+          currentVideo = response.data;
+          
+          // Render video player
+          document.getElementById('video-container').innerHTML = 
+            '<video class="w-100" controls style="max-height: 500px;">' +
+              '<source src="' + currentVideo.videoFile + '" type="video/mp4">' +
+              'Your browser does not support the video tag.' +
+            '</video>';
+          
+          // Render video info
+          document.getElementById('video-info').innerHTML = 
+            '<div>' +
+              '<h3>' + currentVideo.title + '</h3>' +
+              '<div class="d-flex justify-content-between align-items-start mb-3">' +
+                '<div class="text-muted">' +
+                  (currentVideo.views || 0) + ' views • ' + new Date(currentVideo.createdAt).toLocaleDateString() +
+                '</div>' +
+                '<div class="btn-group">' +
+                  '<button class="btn btn-outline-primary btn-sm" onclick="toggleLike()">' +
+                    '<i class="fas fa-thumbs-up"></i> Like' +
+                  '</button>' +
+                  '<button class="btn btn-outline-secondary btn-sm" onclick="toggleSubscribe()">' +
+                    '<i class="fas fa-bell"></i> Subscribe' +
+                  '</button>' +
+                '</div>' +
+              '</div>' +
+              
+              '<div class="card">' +
+                '<div class="card-body">' +
+                  '<div class="d-flex align-items-center mb-2">' +
+                    '<img src="' + (currentVideo.owner?.avatar || '/default-avatar.png') + '" ' +
+                         'class="rounded-circle me-3" ' +
+                         'width="40" height="40" ' +
+                         'alt="Channel Avatar">' +
+                    '<div>' +
+                      '<h6 class="mb-0">' + (currentVideo.owner?.username || 'Unknown') + '</h6>' +
+                      '<small class="text-muted">' + (currentVideo.owner?.fullName || '') + '</small>' +
+                    '</div>' +
+                  '</div>' +
+                  '<p>' + (currentVideo.description || 'No description available.') + '</p>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          
+        } catch (error) {
+          console.error('Error loading video:', error);
+          document.getElementById('video-container').innerHTML = 
+            '<div class="alert alert-danger">Error loading video. Please try again.</div>';
+        }
+      }
+      
+      // Load comments
+      async function loadComments() {
+        try {
+          const response = await api.get('/api/v1/comments/' + videoId);
+          const comments = response.data || [];
+          
+          if (comments.length === 0) {
+            document.getElementById('comments-container').innerHTML = 
+              '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+            return;
+          }
+          
+          document.getElementById('comments-container').innerHTML = comments.map(function(comment) {
+            return '<div class="border-bottom pb-3 mb-3">' +
+              '<div class="d-flex align-items-start">' +
+                '<img src="' + (comment.owner?.avatar || '/default-avatar.png') + '" ' +
+                     'class="rounded-circle me-2" ' +
+                     'width="32" height="32" ' +
+                     'alt="User Avatar">' +
+                '<div class="flex-grow-1">' +
+                  '<div class="d-flex align-items-center mb-1">' +
+                    '<strong class="me-2">' + (comment.owner?.username || 'Anonymous') + '</strong>' +
+                    '<small class="text-muted">' + new Date(comment.createdAt).toLocaleDateString() + '</small>' +
+                  '</div>' +
+                  '<p class="mb-0">' + comment.content + '</p>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+          
+        } catch (error) {
+          console.error('Error loading comments:', error);
+          document.getElementById('comments-container').innerHTML = 
+            '<p class="text-danger">Error loading comments.</p>';
+        }
+      }
+      
+      // Add comment
+      async function addComment() {
+        const content = document.getElementById('commentText').value.trim();
+        if (!content) return;
+        
+        try {
+          await api.post('/api/v1/comments/' + videoId, { content: content });
+          document.getElementById('commentText').value = '';
+          loadComments(); // Reload comments
+        } catch (error) {
+          console.error('Error adding comment:', error);
+          alert('Error adding comment. Please try again.');
+        }
+      }
+      
+      // Toggle like
+      async function toggleLike() {
+        try {
+          await api.post('/api/v1/likes/toggle/v/' + videoId);
+          // Update UI or reload video info
+        } catch (error) {
+          console.error('Error toggling like:', error);
+        }
+      }
+      
+      // Toggle subscribe
+      async function toggleSubscribe() {
+        if (!currentVideo?.owner?._id) return;
+        
+        try {
+          await api.post('/api/v1/subscriptions/c/' + currentVideo.owner._id);
+          // Update UI
+        } catch (error) {
+          console.error('Error toggling subscription:', error);
+        }
+      }
+      
+      // Load related videos
+      async function loadRelatedVideos() {
+        try {
+          const response = await api.get('/api/v1/videos?limit=10');
+          const videos = response.data?.data || response.data || [];
+          
+          document.getElementById('related-videos').innerHTML = videos.slice(0, 8).map(function(video) {
+            return '<div class="card mb-3">' +
+              '<div class="row g-0">' +
+                '<div class="col-5">' +
+                  '<img src="' + video.thumbnail + '" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="thumbnail">' +
+                '</div>' +
+                '<div class="col-7">' +
+                  '<div class="card-body p-2">' +
+                    '<h6 class="card-title small mb-1">' +
+                      '<a href="/watch/' + video._id + '" class="text-decoration-none text-dark">' +
+                        video.title +
+                      '</a>' +
+                    '</h6>' +
+                    '<p class="card-text small text-muted mb-0">' + (video.owner?.username || 'Unknown') + '</p>' +
+                    '<p class="card-text small text-muted">' + (video.views || 0) + ' views</p>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+          
+        } catch (error) {
+          console.error('Error loading related videos:', error);
+        }
+      }
+      
+      // Initialize page
+      document.addEventListener('DOMContentLoaded', function() {
+        loadVideo();
+        loadComments();
+        loadRelatedVideos();
+      });
+    </script>
+  `
+}) %>

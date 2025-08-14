@@ -1,0 +1,69 @@
+<%- include('layout', { title: 'Profile' }) %>
+
+<div class="row">
+  <div class="col-md-4">
+    <h2>Profile</h2>
+    <div id="profile-info"></div>
+  </div>
+  <div class="col-md-8">
+    <h2>Update Profile</h2>
+    <form id="profile-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" class="form-control" name="username">
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" class="form-control" name="email">
+      </div>
+      <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  async function loadProfile() {
+    try {
+      const res = await fetch('/api/v1/users/me');
+      if (!res.ok) throw new Error('Failed to fetch profile');
+      const user = await res.json();
+
+      document.getElementById('profile-info').innerHTML = `
+        <p><strong>Username:</strong> ${user.username}</p>
+        <p><strong>Email:</strong> ${user.email}</p>
+      `;
+
+      document.getElementById('username').value = user.username || '';
+      document.getElementById('email').value = user.email || '';
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById('profile-info').innerHTML = '<p class="text-danger">Error loading profile</p>';
+    }
+  }
+
+  document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+
+    try {
+      const res = await fetch('/api/v1/users/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email })
+      });
+
+      if (!res.ok) throw new Error('Failed to update profile');
+
+      await loadProfile();
+      alert('Profile updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Error updating profile');
+    }
+  });
+
+  loadProfile();
+</script>

@@ -1,0 +1,181 @@
+<%- include('layout', { 
+  title: 'Upload Video', 
+  body: `
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h4 class="mb-0"><i class="fas fa-upload me-2"></i>Upload New Video</h4>
+          </div>
+          <div class="card-body">
+            <div id="alert-container"></div>
+            
+            <form id="uploadForm" enctype="multipart/form-data">
+              <div class="mb-4">
+                <label class="form-label"><strong>Video File *</strong></label>
+                <input class="form-control form-control-lg" 
+                       name="videoFile" 
+                       type="file" 
+                       accept="video/*"
+                       required />
+                <div class="form-text">Supported formats: MP4, AVI, MOV, WMV (Max: 500MB)</div>
+              </div>
+              
+              <div class="mb-4">
+                <label class="form-label"><strong>Thumbnail *</strong></label>
+                <input class="form-control" 
+                       name="thumbnail" 
+                       type="file" 
+                       accept="image/*"
+                       required />
+                <div class="form-text">Recommended: 1280x720px, JPG or PNG</div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label"><strong>Title *</strong></label>
+                <input class="form-control form-control-lg" 
+                       name="title" 
+                       type="text" 
+                       placeholder="Enter video title..."
+                       maxlength="100"
+                       required />
+                <div class="form-text"><span id="titleCount">0</span>/100 characters</div>
+              </div>
+              
+              <div class="mb-4">
+                <label class="form-label"><strong>Description</strong></label>
+                <textarea class="form-control" 
+                          name="description" 
+                          rows="5"
+                          placeholder="Tell viewers about your video..."
+                          maxlength="5000"></textarea>
+                <div class="form-text"><span id="descCount">0</span>/5000 characters</div>
+              </div>
+              
+              <div id="uploadProgress" class="mb-3 d-none">
+                <label class="form-label">Upload Progress</label>
+                <div class="progress">
+                  <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+                <small class="text-muted">Please don't close this page while uploading...</small>
+              </div>
+              
+              <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-outline-secondary" onclick="window.history.back()">
+                  Cancel
+                </button>
+                <button class="btn btn-primary btn-lg" type="submit" id="uploadBtn">
+                  <span class="spinner-border spinner-border-sm me-2 d-none" id="uploadSpinner"></span>
+                  <i class="fas fa-upload me-2"></i>
+                  Upload Video
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <div class="card mt-4">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Upload Tips</h6>
+          </div>
+          <div class="card-body">
+            <ul class="mb-0">
+              <li>Use a clear, descriptive title</li>
+              <li>Create an eye-catching thumbnail</li>
+              <li>Write a detailed description</li>
+              <li>Upload during peak hours</li>
+              <li>Ensure high quality (720p+)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      // Character counters
+      document.querySelector('input[name="title"]').addEventListener('input', e => {
+        document.getElementById('titleCount').textContent = e.target.value.length;
+      });
+      document.querySelector('textarea[name="description"]').addEventListener('input', e => {
+        document.getElementById('descCount').textContent = e.target.value.length;
+      });
+
+      function validateFileSize(file, maxSizeMB, fieldName) {
+        if (!file) {
+          alert(fieldName + ' is required.');
+          return false;
+        }
+        const maxSize = maxSizeMB * 1024 * 1024;
+        if (file.size > maxSize) {
+          alert(fieldName + ' must be less than ' + maxSizeMB + 'MB');
+          return false;
+        }
+        return true;
+      }
+
+      document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const btn = document.getElementById('uploadBtn');
+        const spinner = document.getElementById('uploadSpinner');
+        const alertContainer = document.getElementById('alert-container');
+        const progressContainer = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+
+        const videoFile = document.querySelector('input[name="videoFile"]').files[0];
+        const thumbnailFile = document.querySelector('input[name="thumbnail"]').files[0];
+
+        if (!validateFileSize(videoFile, 500, 'Video')) return;
+        if (!validateFileSize(thumbnailFile, 10, 'Thumbnail')) return;
+
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        progressContainer.classList.remove('d-none');
+        alertContainer.innerHTML = '';
+
+        const formData = new FormData(this);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/v1/videos', true);
+        xhr.withCredentials = true;
+
+        xhr.upload.addEventListener('progress', e => {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = Math.round(percent) + '%';
+          }
+        });
+
+        xhr.onload = () => {
+          let result = {};
+          try {
+            result = JSON.parse(xhr.responseText || '{}');
+          } catch (err) {
+            console.error('Invalid JSON from server', err);
+          }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            alertContainer.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>Video uploaded successfully! Redirecting...</div>';
+            setTimeout(() => window.location.href = '/dashboard', 2000);
+          } else {
+            alertContainer.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>' + (result.message || 'Upload failed') + '</div>';
+          }
+        };
+
+        xhr.onerror = () => {
+          alertContainer.innerHTML = '<div class="alert alert-danger">Network error. Please try again.</div>';
+        };
+
+        xhr.onloadend = () => {
+          btn.disabled = false;
+          spinner.classList.add('d-none');
+          progressContainer.classList.add('d-none');
+          progressBar.style.width = '0%';
+          progressBar.textContent = '0%';
+        };
+
+        xhr.send(formData);
+      });
+    </script>
+  `
+}) %>
